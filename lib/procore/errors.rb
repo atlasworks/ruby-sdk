@@ -9,10 +9,46 @@ module Procore
     attr_reader :response
 
     def initialize(message, response: nil)
-      @message = message
+      @message = if response&.body
+                   [
+                     message,
+                     sanitize(parse_json(response&.body))&.to_s,
+                   ].join("\n")
+                 else
+                   message
+                 end
       @response = response
 
       super(message)
+    end
+
+    # A Request object which contains details about the request
+    def request
+      response&.request
+    end
+
+    private
+
+    def parse_json(body)
+      body = body.presence || "{}"
+
+      begin
+        JSON.parse(body)
+      rescue JSON::ParserError
+        body
+      end
+    end
+
+    def sanitize(params)
+      if params.present? && params.is_a?(Hash)
+        filter.filter(params)
+      end
+    end
+
+    def filter
+      ActionDispatch::Http::ParameterFilter.new(
+        Rails.application.config.filter_params,
+      )
     end
   end
 
